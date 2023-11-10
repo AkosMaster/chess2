@@ -1,0 +1,156 @@
+<body style="background-color:DodgerBlue;">
+
+<center>
+	<h1>Ducz's chess</h1> <h2> (room: <input autocomplete="off" type="text" id="roomId">) </h2>
+	
+	<div id="roomButtons"><button onclick="NW_joinGame()">Join game</button><br><br><button onclick="NW_createGame()">Create game</button><br><br></div>
+	<div><center id="chessboard_holder" style="background-color:LightGray;"></center></div>
+
+	<button id="readybutton" disabled="true" hidden="true" onclick="NW_ready()">(waiting for other player)</button><br><br>
+	
+	<h4 id="selectedPieceName" hidden>Select a piece!</h4>
+	<a id="selectedPieceDesc" hidden>.....</a>
+
+	<div hidden id="pieceShop"></div>
+
+</center>
+</body>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+  // NETWORKING SCRIPT
+  var socket = io();
+
+  socket.on('connect',function(){
+    console.log("connected")
+  });
+
+  socket.on('neterror',function(msg){
+    alert(msg);
+    location.reload();
+  });
+
+  socket.on('netcmd',function(cmd){
+  	console.log(cmd)
+
+  	NW_receivecmd(cmd);
+  });
+
+  socket.on('roomfull',function(){
+  	readybutton.disabled = false;
+  	readybutton.innerHTML = "Ready";
+  	pieceShop.hidden = false;
+  	selectedPieceName.hidden = false;
+  	selectedPieceDesc.hidden = false;
+  	pieceShopEnabled = true;
+  });
+</script>
+
+<script>
+
+roomNumberInput = document.getElementById("roomId");
+roomButtons = document.getElementById("roomButtons");
+readybutton = document.getElementById("readybutton");
+pieceShop = document.getElementById("pieceShop");
+
+pieceShopEnabled = false;
+
+var isStartingPlayer = false;
+
+function NW_createGame() {
+	var roomNumber = roomNumberInput.value;
+
+	if (roomNumber == "") {
+		roomNumber = Math.floor(Math.random() * 9999999999).toString();
+		roomNumberInput.value = roomNumber;
+	}
+	
+	roomNumberInput.setAttribute('readonly', 'readonly');
+	roomButtons.remove();
+
+	socket.emit("createRoom", roomNumber);
+	isStartingPlayer = false;
+	generateTiles(false);
+
+	readybutton.hidden = false;
+}
+
+function NW_joinGame() {
+	var roomNumber = roomNumberInput.value;
+
+	roomNumberInput.setAttribute('readonly', 'readonly');
+	roomButtons.remove();
+
+	socket.emit("joinRoom", roomNumber);
+
+	isStartingPlayer = true;
+	generateTiles(true);
+
+	readybutton.hidden = false;
+}
+
+function NW_ready() {
+	NW_sendcmd({"cmd": "ready"})
+
+	readybutton.disabled = true;
+}
+
+function NW_spawnPiece(name, x, y, isBlack) {
+	socket.emit("netcmd", {"cmd": "spawn", "name": name, "x": x, "y": y, "isBlack": isBlack});
+}
+
+function NW_deletePiece(x,y) {
+	socket.emit("netcmd", {"cmd": "delete", "x": x, "y": y});
+}
+
+function NW_sendcmd(command) {
+	socket.emit("netcmd", command);
+}
+
+var nw_ready_count = 0;
+function NW_receivecmd(command) {
+
+	if (command.cmd == "ready") {
+		nw_ready_count++;
+
+		if (nw_ready_count >= 2) {
+			
+			readybutton.remove();
+			pieceShop.remove();
+			pieceShopEnabled = false;
+
+			if (isStartingPlayer) {
+				// start ur turn
+			}
+		}
+	} else if (command.cmd == "spawn") {
+		spawnPieceByName(command.name, command.x, command.y, command.isBlack);
+	} else if (command.cmd == "delete") { // deletion in shop
+		delete board.cells[y][x].piece;
+		board.cells[y][x].piece = null;
+	}
+}
+
+</script>
+
+<style>
+
+.cell {
+       height: 50px;
+       width: 50px;
+       border: 1px solid grey;
+       border-style: inset;
+}
+
+.sprite {
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+  width: 90%;
+  height: 90%;
+}
+
+</style>
+
+<script src="board.js"></script>
+<script src="pieces.js"></script>
