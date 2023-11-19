@@ -2,6 +2,8 @@ DOM_center = document.getElementById("chessboard_holder");
 
 DOM_chessboard = document.createElement('table');
 
+var selectedPiece = null;
+
 class ChessBoard {
 	constructor(DOM_board) {
 		this.DOM = DOM_board;
@@ -43,18 +45,29 @@ class Cell {
 
 	onclick() { // here "this" refers to the DOM element
 		ClearAllHighlights(this.cell.chessboard);
-		if (pieceShopEnabled) {
+		if (pieceShopEnabled && ((isStartingPlayer && this.cell.y <= 2) || (!isStartingPlayer && this.cell.y >= 5))) {
 			if (pieceShop_selectedPieceName == "delete" && this.cell.piece != null && this.cell.piece.isBlack == isStartingPlayer) {
-				NW_deletePiece(x,y);
+				money += pieceInfo[this.cell.piece.name].price;
+				NW_deletePiece(this.cell.x,this.cell.y);
+				updateMoneyDisplay();
 			}
-			else if (pieceShop_selectedPieceName != "" && this.cell.piece == null) {
+			else if (pieceShop_selectedPieceName != "" && this.cell.piece == null && money >= pieceInfo[pieceShop_selectedPieceName].price) {
 				NW_spawnPiece(pieceShop_selectedPieceName, this.cell.x, this.cell.y, isStartingPlayer);
+				money -= pieceInfo[pieceShop_selectedPieceName].price
+				updateMoneyDisplay();
 			}
 		} else {
-			if (this.cell.piece != null) {
+			if (this.cell.piece != null && this.cell.piece.isBlack == isStartingPlayer) {
 				this.cell.piece.highlightLegalMoves();
+				selectedPiece = this.cell.piece;
 			} else {
 				this.cell.highlight(true, "grey");
+				if (selectedPiece != null && isStartingPlayer == startingPlayerToMove) {
+					if (selectedPiece.canMoveTo(this.cell.x, this.cell.y)) {
+						selectedPiece.moveTo(this.cell.x, this.cell.y);
+					}
+					selectedPiece = null;
+				}
 			}
 		}
 	}
@@ -92,6 +105,7 @@ class Cell {
 }
 
 board = new ChessBoard(DOM_chessboard);
+var board_separatorLine;
 function generateTiles(flipped) {
 
 	// create tile array filled with nulls
@@ -107,8 +121,15 @@ function generateTiles(flipped) {
 
 		// create a row
 		var row = document.createElement('tr');
+
+		if (i == 5) {
+			var line = document.createElement('br')
+			DOM_chessboard.appendChild(line);
+			board_separatorLine = line;
+		}
 		
 		for (var j = 0; j < 8; j++) {
+			
 		// create a cell
 			var DOM_cell = document.createElement('td');
 

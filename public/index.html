@@ -11,7 +11,9 @@
 	<h4 id="selectedPieceName" hidden>Select a piece!</h4>
 	<a id="selectedPieceDesc" hidden>.....</a>
 
-	<div hidden id="pieceShop"></div>
+	<hr>
+
+	<div hidden id="pieceShop"><a id="money">100</a><img src="sprites/goldcoin.png" style="width:15px;height:15px;"><br></div>
 
 </center>
 </body>
@@ -90,9 +92,12 @@ function NW_joinGame() {
 }
 
 function NW_ready() {
-	NW_sendcmd({"cmd": "ready"})
-
-	readybutton.disabled = true;
+	if (nw_player_kings[isStartingPlayer ? 1 : 0] > 0) {
+		NW_sendcmd({"cmd": "ready"})
+		readybutton.disabled = true;
+	} else {
+		alert("You don't have any kings!");
+	}
 }
 
 function NW_spawnPiece(name, x, y, isBlack) {
@@ -103,11 +108,19 @@ function NW_deletePiece(x,y) {
 	socket.emit("netcmd", {"cmd": "delete", "x": x, "y": y});
 }
 
+function NW_movePiece(fromX, fromY, toX, toY) {
+	socket.emit("netcmd", {"cmd": "move", "fromX": fromX, "fromY": fromY, "toX": toX, "toY": toY});
+}
+
 function NW_sendcmd(command) {
 	socket.emit("netcmd", command);
 }
 
 var nw_ready_count = 0;
+var nw_player_kings = [0,0]; // first is white
+
+var startingPlayerToMove = false; // true is startingPlayer (the one who started the room, he plays black)
+
 function NW_receivecmd(command) {
 
 	if (command.cmd == "ready") {
@@ -119,15 +132,51 @@ function NW_receivecmd(command) {
 			pieceShop.remove();
 			pieceShopEnabled = false;
 
+			board_separatorLine.remove();
+
 			if (isStartingPlayer) {
 				// start ur turn
 			}
 		}
 	} else if (command.cmd == "spawn") {
+
+		if (board.cells[command.y][command.x].piece != null) {
+			delete board.cells[command.y][command.x].piece;
+			board.cells[command.y][command.x].piece = null;
+			board.cells[command.y][command.x].removeSprite();
+			// previous piece deleted
+		}
+
 		spawnPieceByName(command.name, command.x, command.y, command.isBlack);
 	} else if (command.cmd == "delete") { // deletion in shop
-		delete board.cells[y][x].piece;
-		board.cells[y][x].piece = null;
+		board.cells[command.y][command.x].piece.onDelete();
+		delete board.cells[command.y][command.x].piece;
+		board.cells[command.y][command.x].piece = null;
+		board.cells[command.y][command.x].removeSprite();
+	} else if (command.cmd == "move") {
+		board.cells[command.fromY][command.fromX].removeSprite();
+
+		if (board.cells[command.toY][command.toX].piece != null) {
+			board.cells[command.toY][command.toX].piece.onHit();
+
+			delete board.cells[command.toY][command.toX].piece;
+			board.cells[command.toY][command.toX].piece = null;
+			board.cells[command.toY][command.toX].removeSprite();
+
+			// piece was hit
+		}
+		
+		board.cells[command.toY][command.toX].piece = board.cells[command.fromY][command.fromX].piece;
+
+		board.cells[command.toY][command.toX].piece.x = command.toX;
+		board.cells[command.toY][command.toX].piece.y = command.toY;
+
+		board.cells[command.fromY][command.fromX].piece = null;
+		board.cells[command.toY][command.toX].piece.createSprite();
+
+		board.cells[command.toY][command.toX].piece.onMove(command.fromX, command.fromY, command.toX, command.toY);
+
+		startingPlayerToMove = !startingPlayerToMove;
 	}
 }
 
